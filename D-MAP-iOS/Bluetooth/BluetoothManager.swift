@@ -326,6 +326,8 @@ extension BluetoothManager: CBPeripheralDelegate {
             }
         case .timeSyncSuccess:
             break
+        case .authSuccess:
+            break
         case .sedentaryResult(let minutes):
             break
         case .endCall:
