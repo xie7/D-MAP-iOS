@@ -27,6 +27,7 @@ jobs:
 
     - name: Build for iOS (unsigned)
       run: |
+        set -o pipefail
         xcodebuild \
           -project D-MAP-iOS.xcodeproj \
           -scheme D-MAP \
