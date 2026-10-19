@@ -1,44 +1,80 @@
-name: iOS starter workflow
+name: Build D-MAP iOS App
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build and Test default scheme using any available iPhone simulator
     runs-on: macos-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set Default Scheme
-        run: |
-          scheme_list=$(xcodebuild -list -json | tr -d "\n")
-          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
-          echo $default | cat >default
-          echo Using default scheme: $default
-      - name: Build
-        env:
-          scheme: ${{ 'default' }}
-          platform: ${{ 'iOS Simulator' }}
-        run: |
-          # xcrun xctrace returns via stderr, not the expected stdout (see https://developer.apple.com/forums/thread/663959)
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          if [ $scheme = default ]; then scheme=$(cat default); fi
-          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
-          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild build-for-testing -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
-      - name: Test
-        env:
-          scheme: ${{ 'default' }}
-          platform: ${{ 'iOS Simulator' }}
-        run: |
-          # xcrun xctrace returns via stderr, not the expected stdout (see https://developer.apple.com/forums/thread/663959)
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          if [ $scheme = default ]; then scheme=$(cat default); fi
-          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
-          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild test-without-building -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
+
+    - name: Show Xcode version
+      run: |
+        xcodebuild -version
+        xcodebuild -showsdks | grep iphoneos || true
+
+    - name: List schemes
+      run: |
+        xcodebuild -project D-MAP-iOS.xcodeproj -list
+
+    - name: Build for iOS (unsigned)
+      run: |
+        xcodebuild \
+          -project D-MAP-iOS.xcodeproj \
+          -scheme D-MAP \
+          -configuration Release \
+          -sdk iphoneos \
+          -derivedDataPath build \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGN_ENTITLEMENTS="" \
+          DEVELOPMENT_TEAM="" \
+          ONLY_ACTIVE_ARCH=NO \
+          build 2>&1 | tee build.log
+
+    - name: Verify build output
+      run: |
+        echo "=== Build products ==="
+        find build/Build/Products -name "*.app" -type d 2>/dev/null || echo "No .app found"
+        ls -la build/Build/Products/Release-iphoneos/ 2>/dev/null || echo "Release-iphoneos not found"
+        ls -la build/Build/Products/ 2>/dev/null || echo "Products dir not found"
+
+    - name: Create IPA
+      run: |
+        APP_PATH=$(find build/Build/Products -name "D-MAP.app" -type d | head -1)
+        if [ -z "$APP_PATH" ]; then
+          echo "ERROR: D-MAP.app not found!"
+          find build -name "*.app" 2>/dev/null
+          exit 1
+        fi
+        echo "Found app at: $APP_PATH"
+        mkdir -p Payload
+        cp -R "$APP_PATH" Payload/
+        zip -r D-MAP.ipa Payload
+        rm -rf Payload
+        ls -lh D-MAP.ipa
+
+    - name: Upload IPA
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: D-MAP-iOS-IPA
+        path: D-MAP.ipa
+        retention-days: 30
+
+    - name: Upload build log on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log
+        retention-days: 7
