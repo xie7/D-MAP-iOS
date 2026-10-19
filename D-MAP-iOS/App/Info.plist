@@ -32,10 +32,6 @@
 	<string>D-MAP 需要访问相册以保存遥控拍照拍摄的照片。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>D-MAP 需要访问相册以查看和保存遥控拍照拍摄的照片。</string>
-	<key>NSLocalNotificationUsageDescription</key>
-	<string>D-MAP 需要发送通知以提醒您久坐、闹钟等信息。</string>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
