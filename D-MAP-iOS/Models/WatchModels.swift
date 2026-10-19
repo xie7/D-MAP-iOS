@@ -13,7 +13,7 @@ struct Alarm: Identifiable, Codable, Equatable {
     var repeatMask: UInt8 {
         var mask: UInt8 = 0
         for day in repeatDays {
-            mask |= (1 << day.rawValue)
+            mask |= (UInt8(1) << day.rawValue)
         }
         return mask
     }
