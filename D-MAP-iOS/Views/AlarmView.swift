@@ -140,7 +140,7 @@ struct AlarmEditView: View {
             Form {
                 // 时间选择
                 Section {
-                    DatePicker("时间", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                    DatePicker("时间", selection: selectedTimeBinding, displayedComponents: .hourAndMinute)
                         .datePickerStyle(.wheel)
                 }
 
@@ -199,18 +199,20 @@ struct AlarmEditView: View {
         }
     }
 
-    private var selectedTime: Date {
-        get {
-            var comps = DateComponents()
-            comps.hour = hour
-            comps.minute = minute
-            return Calendar.current.date(from: comps) ?? Date()
-        }
-        set {
-            let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-            hour = comps.hour ?? 0
-            minute = comps.minute ?? 0
-        }
+    private var selectedTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                var comps = DateComponents()
+                comps.hour = self.hour
+                comps.minute = self.minute
+                return Calendar.current.date(from: comps) ?? Date()
+            },
+            set: { newValue in
+                let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                self.hour = comps.hour ?? 0
+                self.minute = comps.minute ?? 0
+            }
+        )
     }
 }
 

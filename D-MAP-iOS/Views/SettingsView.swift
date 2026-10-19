@@ -130,10 +130,8 @@ struct SedentarySettingsView: View {
                 }
 
                 Section("提醒时段") {
-                    DatePicker("开始时间", selection: $startTime, displayedComponents: .hourAndMinute)
-                        .onChange(of: startTime) { _ in save() }
-                    DatePicker("结束时间", selection: $endTime, displayedComponents: .hourAndMinute)
-                        .onChange(of: endTime) { _ in save() }
+                    DatePicker("开始时间", selection: startTimeBinding, displayedComponents: .hourAndMinute)
+                    DatePicker("结束时间", selection: endTimeBinding, displayedComponents: .hourAndMinute)
                 }
 
                 Section("休息时长") {
@@ -156,32 +154,38 @@ struct SedentarySettingsView: View {
         }
     }
 
-    private var startTime: Date {
-        get {
-            var comps = DateComponents()
-            comps.hour = settings.startHour
-            comps.minute = settings.startMinute
-            return Calendar.current.date(from: comps) ?? Date()
-        }
-        set {
-            let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-            settings.startHour = comps.hour ?? 9
-            settings.startMinute = comps.minute ?? 0
-        }
+    private var startTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                var comps = DateComponents()
+                comps.hour = self.settings.startHour
+                comps.minute = self.settings.startMinute
+                return Calendar.current.date(from: comps) ?? Date()
+            },
+            set: { newValue in
+                let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                self.settings.startHour = comps.hour ?? 9
+                self.settings.startMinute = comps.minute ?? 0
+                self.save()
+            }
+        )
     }
 
-    private var endTime: Date {
-        get {
-            var comps = DateComponents()
-            comps.hour = settings.endHour
-            comps.minute = settings.endMinute
-            return Calendar.current.date(from: comps) ?? Date()
-        }
-        set {
-            let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-            settings.endHour = comps.hour ?? 18
-            settings.endMinute = comps.minute ?? 0
-        }
+    private var endTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                var comps = DateComponents()
+                comps.hour = self.settings.endHour
+                comps.minute = self.settings.endMinute
+                return Calendar.current.date(from: comps) ?? Date()
+            },
+            set: { newValue in
+                let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                self.settings.endHour = comps.hour ?? 18
+                self.settings.endMinute = comps.minute ?? 0
+                self.save()
+            }
+        )
     }
 
     private func save() {
