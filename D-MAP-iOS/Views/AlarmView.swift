@@ -103,7 +103,8 @@ struct AlarmListViewPage: View {
                     } else {
                         DMapCard {
                             VStack(spacing: 0) {
-                                ForEach(Array(viewModel.alarms.enumerated()), id: \.element.id) { idx, alarm in
+                                ForEach(viewModel.alarms.indices, id: \.self) { idx in
+                                    let alarm = viewModel.alarms[idx]
                                     AlarmRow(alarm: alarm) {
                                         editingAlarm = alarm
                                     } onToggle: {

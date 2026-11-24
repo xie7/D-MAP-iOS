@@ -133,7 +133,7 @@ struct DMapNavRow<Destination: View>: View {
     @ViewBuilder var destination: () -> Destination
 
     var body: some View {
-        NavigationLink(destination: destination) {
+        NavigationLink(destination: destination()) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .font(.system(size: 18))

@@ -353,11 +353,13 @@ struct DeviceScanView: View {
             } else {
                 DMapCard {
                     VStack(spacing: 0) {
-                        ForEach(Array(viewModel.bluetoothManager.discoveredDevices.enumerated()), id: \.element.id) { idx, device in
+                        let devices = viewModel.bluetoothManager.discoveredDevices
+                        ForEach(devices.indices, id: \.self) { idx in
+                            let device = devices[idx]
                             DeviceRow(device: device) {
                                 connectToDevice(device)
                             }
-                            if idx < viewModel.bluetoothManager.discoveredDevices.count - 1 {
+                            if idx < devices.count - 1 {
                                 DMapRowDivider()
                             }
                         }
