@@ -40,7 +40,7 @@ struct SettingsView: View {
                 // 时间同步
                 Section {
                     Button(action: {
-                        viewModel.syncTime()
+                        viewModel.manualSyncTime()
                     }) {
                         HStack {
                             Image(systemName: "clock.arrow.circlepath")

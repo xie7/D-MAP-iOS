@@ -30,14 +30,31 @@ final class DeviceViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // 监听连接状态，连接成功后同步设置
-        bluetoothManager.$isConnected
-            .sink { [weak self] connected in
-                if connected {
-                    self?.syncAllSettingsToWatch()
+        // 连接本身不再自动校时：真表必须先「握手→按侧键→校时」。
+        // 改监听配对状态，校时成功后再把闹钟/久坐等设置推给手表。
+        bluetoothManager.$pairingState
+            .sink { [weak self] state in
+                if case .synced = state {
+                    self?.syncSettingsAfterPairing()
                 }
             }
             .store(in: &cancellables)
+    }
+
+    // MARK: - 配对流程（真表验证版）
+
+    var pairingState: BluetoothManager.PairingState {
+        bluetoothManager.pairingState
+    }
+
+    /// 用户按了手表侧键后调用
+    func confirmSideButtonPressed() {
+        bluetoothManager.confirmSideButtonPressed()
+    }
+
+    /// 手动重新校时
+    func manualSyncTime() {
+        bluetoothManager.manualSyncTime()
     }
 
     // MARK: - 闹钟管理
@@ -137,12 +154,11 @@ final class DeviceViewModel: ObservableObject {
         bluetoothManager.findWatch()
     }
 
-    // MARK: - 同步所有设置到手表
+    // MARK: - 配对成功后同步其余设置到手表（校时已由配对流程完成）
 
-    private func syncAllSettingsToWatch() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+    private func syncSettingsAfterPairing() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self else { return }
-            self.syncTime()
             for (index, alarm) in self.alarms.enumerated() {
                 self.syncAlarmToWatch(alarm, at: index)
             }
