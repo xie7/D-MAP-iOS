@@ -1,37 +1,318 @@
 import SwiftUI
 
-/// 设备视图 - 扫描、连接、显示设备状态
-struct DeviceView: View {
+// MARK: - 我的一天（安卓原版首页：连接状态 + 今日运动数据）
+
+struct DayView: View {
     @EnvironmentObject var viewModel: DeviceViewModel
-    @State private var showScanAlert = false
 
     var body: some View {
-        NavigationView {
-            Group {
-                if viewModel.bluetoothManager.isConnected {
-                    DeviceDetailView()
-                } else {
-                    DeviceScanView()
+        DMapPage(title: "我的一天") {
+            ScrollView {
+                VStack(spacing: 12) {
+                    // 连接状态条
+                    ConnectionBanner()
+
+                    // 今日总步数（圆环 + 目标）
+                    DMapCard {
+                        VStack(spacing: 14) {
+                            Text("今日总步数")
+                                .font(.system(size: 14))
+                                .foregroundColor(DMapTheme.textGray)
+                            ZStack {
+                                Circle()
+                                    .stroke(DMapTheme.divider, lineWidth: 12)
+                                    .frame(width: 150, height: 150)
+                                Circle()
+                                    .trim(from: 0, to: progress)
+                                    .stroke(DMapTheme.brandBlue, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                                    .frame(width: 150, height: 150)
+                                    .rotationEffect(.degrees(-90))
+                                VStack(spacing: 2) {
+                                    Text("\(viewModel.todaySteps)")
+                                        .font(.system(size: 32, weight: .medium))
+                                        .foregroundColor(DMapTheme.textDark)
+                                    Text("目标 \(viewModel.stepGoal) 步")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(DMapTheme.textGray)
+                                }
+                            }
+                            Text(viewModel.bluetoothManager.isConnected ? "数据由手表同步" : "暂无历史数据")
+                                .font(.system(size: 12))
+                                .foregroundColor(DMapTheme.textGray)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                    }
+
+                    // 三项指标
+                    HStack(spacing: 8) {
+                        DayMetricCard(icon: "flame.fill", tint: .orange,
+                                      title: "卡路里消耗", value: viewModel.todayCalories, unit: "千卡")
+                        DayMetricCard(icon: "figure.walk", tint: .green,
+                                      title: "活动时间", value: viewModel.todayActiveMinutes, unit: "分")
+                        DayMetricCard(icon: "bed.double.fill", tint: .purple,
+                                      title: "睡眠时长", value: viewModel.todaySleepMinutes, unit: "分")
+                    }
+                    .padding(.horizontal, 8)
+
+                    // 运动完成度 / 设备信息
+                    DMapCard {
+                        VStack(spacing: 0) {
+                            DMapRow(icon: "chart.pie.fill", tint: .blue, title: "运动完成度",
+                                    detail: "查看运动完成度", showArrow: false)
+                            DMapRowDivider()
+                            DMapRow(icon: "battery.75percent", tint: .green, title: "手表电量",
+                                    detail: viewModel.bluetoothManager.isConnected ? "\(viewModel.bluetoothManager.batteryLevel)%" : "未连接",
+                                    showArrow: false)
+                            DMapRowDivider()
+                            DMapRow(icon: "info.circle.fill", tint: .blue, title: "设备固件版本",
+                                    detail: viewModel.bluetoothManager.firmwareVersion, showArrow: false)
+                        }
+                    }
+
+                    // 同步数据按钮（安卓：同步数据成功/失败）
+                    Button(action: { viewModel.bluetoothManager.queryVersionAndPower() }) {
+                        Text("同步数据")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(DMapTheme.brandBlue)
+                            .cornerRadius(6)
+                    }
+                    .padding(.horizontal, 8)
+                    .disabled(!viewModel.bluetoothManager.isConnected)
+                    .opacity(viewModel.bluetoothManager.isConnected ? 1 : 0.5)
+
+                    Text("说明：步数 / 睡眠 / 心率等历史数据依赖手表主动上报，本版本未接入该协议，故显示占位。校时、闹钟、智能提醒等已验证功能可正常使用。")
+                        .font(.system(size: 11))
+                        .foregroundColor(DMapTheme.textGray)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 20)
                 }
+                .padding(.top, 12)
             }
-            .navigationTitle("D-MAP")
-            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private var progress: CGFloat {
+        guard viewModel.stepGoal > 0 else { return 0 }
+        return min(CGFloat(viewModel.todaySteps) / CGFloat(viewModel.stepGoal), 1.0)
+    }
+}
+
+// MARK: - 连接状态横幅
+struct ConnectionBanner: View {
+    @EnvironmentObject var viewModel: DeviceViewModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: viewModel.bluetoothManager.isConnected ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundColor(.white)
+                .font(.system(size: 18))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(viewModel.bluetoothManager.isConnected ? "设备已经连接" : "设备未连接")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.white)
+                Text(viewModel.bluetoothManager.isConnected
+                     ? (viewModel.bluetoothManager.connectedDevice?.name ?? "D-MAP")
+                     : "请先连接手表")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.85))
+            }
+            Spacer()
+            NavigationLink(destination: DeviceConnectPage()) {
+                Text(viewModel.bluetoothManager.isConnected ? "设备详情" : "去连接")
+                    .font(.system(size: 13))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.22))
+                    .cornerRadius(14)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(viewModel.bluetoothManager.isConnected ? DMapTheme.brandBlue : Color(red: 0.55, green: 0.62, blue: 0.68))
+        .cornerRadius(6)
+        .padding(.horizontal, 8)
+    }
+}
+
+// MARK: - 单项指标卡
+struct DayMetricCard: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let value: Int
+    let unit: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundColor(tint)
+            Text(title)
+                .font(.system(size: 11))
+                .foregroundColor(DMapTheme.textGray)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text("\(value)")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(DMapTheme.textDark)
+                Text(unit)
+                    .font(.system(size: 10))
+                    .foregroundColor(DMapTheme.textGray)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(DMapTheme.cardBg)
+        .cornerRadius(6)
+    }
+}
+
+// MARK: - 分析（安卓原版：周/月切换 + 步数/睡眠柱状图）
+
+struct AnalysisView: View {
+    @EnvironmentObject var viewModel: DeviceViewModel
+    @State private var period: Int = 0   // 0=周 1=月
+    @State private var metric: Int = 0   // 0=步数 1=睡眠
+
+    private let weekLabels = ["一", "二", "三", "四", "五", "六", "日"]
+    private let monthLabels = ["1", "5", "10", "15", "20", "25", "30"]
+
+    var body: some View {
+        DMapPage(title: "分析") {
+            ScrollView {
+                VStack(spacing: 12) {
+                    // 周 / 月 分段
+                    Picker("", selection: $period) {
+                        Text("周").tag(0)
+                        Text("月").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 8)
+
+                    // 步数 / 睡眠 分段
+                    Picker("", selection: $metric) {
+                        Text("运动步数").tag(0)
+                        Text("睡眠数据").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 8)
+
+                    // 柱状图卡片
+                    DMapCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(metric == 0 ? "运动步数" : "睡眠数据")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(DMapTheme.textDark)
+                            HStack(alignment: .bottom, spacing: 8) {
+                                ForEach(0..<7, id: \.self) { i in
+                                    VStack(spacing: 6) {
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(DMapTheme.brandBlue.opacity(0.35))
+                                            .frame(height: 12)
+                                        Text(period == 0 ? weekLabels[i] : monthLabels[i])
+                                            .font(.system(size: 10))
+                                            .foregroundColor(DMapTheme.textGray)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .frame(height: 130)
+                            DMapEmptyHint(text: "暂无历史数据")
+                        }
+                        .padding(14)
+                    }
+
+                    // 统计卡
+                    DMapCard {
+                        VStack(spacing: 0) {
+                            DMapRow(icon: "figure.walk", tint: .blue, title: "日均步数",
+                                    detail: "0 步", showArrow: false)
+                            DMapRowDivider()
+                            DMapRow(icon: "bed.double.fill", tint: .purple, title: "日均睡眠时长",
+                                    detail: "0 分", showArrow: false)
+                            DMapRowDivider()
+                            DMapRow(icon: "chart.bar.fill", tint: .green, title: "全天步数",
+                                    detail: "0 步", showArrow: false)
+                        }
+                    }
+
+                    Text("运动与睡眠历史数据需手表上报，当前版本暂未接入。")
+                        .font(.system(size: 11))
+                        .foregroundColor(DMapTheme.textGray)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 20)
+                }
+                .padding(.top, 12)
+            }
         }
     }
 }
 
-// MARK: - 扫描视图
+// MARK: - 设备连接页（安卓「附近的设备 / 设备详情」）
 
+struct DeviceConnectPage: View {
+    @EnvironmentObject var viewModel: DeviceViewModel
+
+    var body: some View {
+        DMapSubPage(title: viewModel.bluetoothManager.isConnected ? "设备详情" : "附近的设备") {
+            ScrollView {
+                VStack(spacing: 12) {
+                    if viewModel.bluetoothManager.isConnected {
+                        PairingGuideView()
+                            .padding(.horizontal, 8)
+
+                        DMapCard {
+                            VStack(spacing: 0) {
+                                DMapRow(icon: "battery.75percent", tint: .green, title: "设备电量",
+                                        detail: "\(viewModel.bluetoothManager.batteryLevel)%", showArrow: false)
+                                DMapRowDivider()
+                                DMapRow(icon: "info.circle.fill", tint: .blue, title: "设备固件版本号",
+                                        detail: viewModel.bluetoothManager.firmwareVersion, showArrow: false)
+                                DMapRowDivider()
+                                DMapRow(icon: "clock.arrow.circlepath", tint: .blue, title: "同步手机时间到手表",
+                                        action: { viewModel.manualSyncTime() })
+                                DMapRowDivider()
+                                DMapRow(icon: "location.fill.viewfinder", tint: .orange, title: "查找手表",
+                                        action: { viewModel.findWatch() })
+                                DMapRowDivider()
+                                DMapRow(icon: "arrow.clockwise", tint: .blue, title: "刷新状态",
+                                        action: { viewModel.bluetoothManager.queryVersionAndPower() })
+                            }
+                        }
+
+                        Button(action: { viewModel.bluetoothManager.disconnect() }) {
+                            Text("断开连接")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(Color.red.opacity(0.85))
+                                .cornerRadius(6)
+                        }
+                        .padding(.horizontal, 8)
+                    } else {
+                        BluetoothStatusView()
+                        DeviceScanView()
+                    }
+                }
+                .padding(.top, 12)
+            }
+        }
+    }
+}
+
+// MARK: - 扫描视图（安卓「附近的设备」列表）
 struct DeviceScanView: View {
     @EnvironmentObject var viewModel: DeviceViewModel
     @State private var isScanning = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            // 蓝牙状态指示
-            BluetoothStatusView()
-
-            // 扫描按钮
+        VStack(spacing: 12) {
             Button(action: {
                 if isScanning {
                     viewModel.bluetoothManager.stopScan()
@@ -42,70 +323,62 @@ struct DeviceScanView: View {
                 }
             }) {
                 HStack {
-                    Image(systemName: isScanning ? "stop.circle.fill" : "magnifyingglass.circle.fill")
-                        .font(.title2)
-                    Text(isScanning ? "停止扫描" : "扫描设备")
-                        .fontWeight(.semibold)
+                    Image(systemName: isScanning ? "stop.circle.fill" : "magnifyingglass")
+                        .font(.system(size: 17))
+                    Text(isScanning ? "停止扫描" : "搜索设备")
+                        .font(.system(size: 16, weight: .medium))
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(isScanning ? Color.red.opacity(0.8) : Color.blue)
                 .foregroundColor(.white)
-                .cornerRadius(12)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(isScanning ? Color.red.opacity(0.8) : DMapTheme.brandBlue)
+                .cornerRadius(6)
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 8)
 
-            // 设备列表
-            List {
-                if viewModel.bluetoothManager.discoveredDevices.isEmpty {
-                    Section {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 12) {
-                                Image(systemName: "applewatch")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.gray)
-                                Text(isScanning ? "正在搜索附近的智能手表..." : "点击上方按钮开始扫描")
-                                    .foregroundColor(.gray)
-                            }
-                            .padding(.vertical, 40)
-                            Spacer()
-                        }
+            if viewModel.bluetoothManager.discoveredDevices.isEmpty {
+                DMapCard {
+                    VStack(spacing: 12) {
+                        Image(systemName: "dot.radiowaves.left.and.right")
+                            .font(.system(size: 40))
+                            .foregroundColor(DMapTheme.tabNormal)
+                        Text(isScanning ? "正在搜索 D-MAP 手表…" : "长按手表侧键开蓝牙后，点击搜索设备")
+                            .font(.system(size: 13))
+                            .foregroundColor(DMapTheme.textGray)
+                            .multilineTextAlignment(.center)
                     }
-                } else {
-                    Section("发现的设备") {
-                        ForEach(viewModel.bluetoothManager.discoveredDevices) { device in
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                }
+            } else {
+                DMapCard {
+                    VStack(spacing: 0) {
+                        ForEach(Array(viewModel.bluetoothManager.discoveredDevices.enumerated()), id: \.element.id) { idx, device in
                             DeviceRow(device: device) {
                                 connectToDevice(device)
                             }
+                            if idx < viewModel.bluetoothManager.discoveredDevices.count - 1 {
+                                DMapRowDivider()
+                            }
                         }
                     }
                 }
             }
-            .listStyle(.insetGrouped)
         }
-        .onDisappear {
-            if isScanning {
-                viewModel.bluetoothManager.stopScan()
-            }
-        }
+        .onDisappear { if isScanning { viewModel.bluetoothManager.stopScan() } }
     }
 
     private func connectToDevice(_ device: DiscoveredDevice) {
         isScanning = false
         viewModel.bluetoothManager.stopScan()
         Task {
-            do {
-                try await viewModel.bluetoothManager.connect(to: device)
-            } catch {
-                print("连接失败: \(error)")
-            }
+            do { try await viewModel.bluetoothManager.connect(to: device) }
+            catch { print("连接失败: \(error)") }
         }
     }
 }
 
-// MARK: - 设备行
-
+// MARK: - 设备行（安卓：信号图标 + RSSI + 名称）
 struct DeviceRow: View {
     let device: DiscoveredDevice
     let onConnect: () -> Void
@@ -113,47 +386,43 @@ struct DeviceRow: View {
     var body: some View {
         Button(action: onConnect) {
             HStack(spacing: 12) {
-                Image(systemName: "applewatch")
-                    .font(.title2)
-                    .foregroundColor(.blue)
-                    .frame(width: 40, height: 40)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(10)
-
-                VStack(alignment: .leading, spacing: 4) {
+                Image(systemName: "dot.radiowaves.left.and.right")
+                    .font(.system(size: 17))
+                    .foregroundColor(DMapTheme.brandBlue)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(device.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text("信号: \(device.rssi) dBm")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                        .font(.system(size: 15))
+                        .foregroundColor(DMapTheme.textDark)
+                    Text("\(device.rssi) dBm")
+                        .font(.system(size: 11))
+                        .foregroundColor(DMapTheme.textGray)
                 }
-
                 Spacer()
-
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.gray)
+                    .font(.system(size: 13))
+                    .foregroundColor(DMapTheme.tabNormal)
             }
-            .padding(.vertical, 4)
+            .padding(.horizontal, 14)
+            .frame(height: 54)
         }
+        .buttonStyle(.plain)
     }
 }
 
 // MARK: - 蓝牙状态
-
 struct BluetoothStatusView: View {
     @EnvironmentObject var viewModel: DeviceViewModel
 
     var body: some View {
-        HStack {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 10, height: 10)
+        HStack(spacing: 8) {
+            Circle().fill(statusColor).frame(width: 8, height: 8)
             Text(statusText)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(.system(size: 12))
+                .foregroundColor(DMapTheme.textGray)
+            Spacer()
         }
-        .padding(.top)
+        .padding(.horizontal, 14)
     }
 
     private var statusColor: Color {
@@ -164,7 +433,6 @@ struct BluetoothStatusView: View {
         default: return .gray
         }
     }
-
     private var statusText: String {
         switch viewModel.bluetoothManager.bluetoothState {
         case .poweredOn: return "蓝牙已开启"
@@ -176,79 +444,74 @@ struct BluetoothStatusView: View {
     }
 }
 
-// MARK: - 配对引导视图（真表验证流程）
-
+// MARK: - 配对引导（真表验证流程，保留上一版逻辑，改安卓配色）
 struct PairingGuideView: View {
     @EnvironmentObject var viewModel: DeviceViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: statusIcon)
-                    .font(.title2)
-                    .foregroundColor(statusColor)
-                Text(statusTitle)
-                    .font(.headline)
-                    .foregroundColor(statusColor)
-                Spacer()
-                if case .synced = viewModel.pairingState {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                }
-            }
-
-            Text(statusDetail)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // 等待按侧键时，提供「我已按键」按钮启动校时；也支持手表按键事件自动触发
-            if case .waitingButton = viewModel.pairingState {
-                Button(action: { viewModel.confirmSideButtonPressed() }) {
-                    HStack {
-                        Image(systemName: "hand.tap.fill")
-                        Text("我已按手表侧键，开始校时")
-                            .fontWeight(.semibold)
+        DMapCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: statusIcon)
+                        .font(.system(size: 18))
+                        .foregroundColor(statusColor)
+                    Text(statusTitle)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(statusColor)
+                    Spacer()
+                    if case .synced = viewModel.pairingState {
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.orange)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
                 }
-            }
+                Text(statusDetail)
+                    .font(.system(size: 12))
+                    .foregroundColor(DMapTheme.textGray)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            if case .syncing = viewModel.pairingState {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text("正在校时，请观察手表指针快速追针…")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                if case .waitingButton = viewModel.pairingState {
+                    Button(action: { viewModel.confirmSideButtonPressed() }) {
+                        HStack {
+                            Image(systemName: "hand.tap.fill")
+                            Text("我已按手表侧键，开始校时")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(Color.orange)
+                        .cornerRadius(6)
+                    }
                 }
-            }
-
-            // 校时完成或过程中都可手动重校
-            if case .synced = viewModel.pairingState {
-                Button(action: { viewModel.manualSyncTime() }) {
-                    Label("重新校时", systemImage: "clock.arrow.circlepath")
-                        .font(.subheadline)
+                if case .syncing = viewModel.pairingState {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("正在校时，请观察手表指针快速追针…")
+                            .font(.system(size: 12))
+                            .foregroundColor(DMapTheme.textGray)
+                    }
                 }
-            }
-
-            // 操作提示（折叠显示）
-            DisclosureGroup("如何开蓝牙 / 按键位置") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("1. 长按手表侧键约 3 秒，直到 12 点位置红灯闪 2 秒，松开。")
-                    Text("2. 手表震动后，短按一下侧键确认（配对步骤，不可跳过）。")
-                    Text("3. 若表盘停走/红灯常亮/一直振动：用卡针捅后盖 7 点方向 RST 小孔 2–3 秒复位，再重试。")
+                if case .synced = viewModel.pairingState {
+                    Button(action: { viewModel.manualSyncTime() }) {
+                        Text("重新校时")
+                            .font(.system(size: 13))
+                            .foregroundColor(DMapTheme.brandBlue)
+                    }
                 }
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .padding(.top, 4)
+                DisclosureGroup("如何开蓝牙 / 按键位置") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("1. 长按手表侧键约 3 秒，直到 12 点位置红灯闪 2 秒，松开。")
+                        Text("2. 手表震动后，短按一下侧键确认（配对步骤，不可跳过）。")
+                        Text("3. 若表盘停走/红灯常亮/一直振动：用卡针捅后盖 7 点方向 RST 小孔 2–3 秒复位，再重试。")
+                    }
+                    .font(.system(size: 11))
+                    .foregroundColor(DMapTheme.textGray)
+                    .padding(.top, 4)
+                }
+                .font(.system(size: 13))
+                .foregroundColor(DMapTheme.textDark)
             }
-            .font(.subheadline)
+            .padding(14)
         }
-        .padding(.vertical, 8)
     }
 
     private var statusIcon: String {
@@ -260,16 +523,14 @@ struct PairingGuideView: View {
         case .synced: return "checkmark.circle"
         }
     }
-
     private var statusColor: Color {
         switch viewModel.pairingState {
         case .idle: return .gray
         case .handshaking, .waitingButton: return .orange
-        case .syncing: return .blue
+        case .syncing: return DMapTheme.brandBlue
         case .synced: return .green
         }
     }
-
     private var statusTitle: String {
         switch viewModel.pairingState {
         case .idle: return "等待连接"
@@ -279,112 +540,18 @@ struct PairingGuideView: View {
         case .synced: return "校时成功"
         }
     }
-
     private var statusDetail: String {
         switch viewModel.pairingState {
-        case .idle:
-            return "连接手表后，请长按手表键开蓝牙完成配对。"
-        case .handshaking:
-            return "已发送连接确认和授权，手表即将震动。"
-        case .waitingButton:
-            return "手表现在应该已震动。请短按一下侧键，然后点下方按钮（或等手表自动上报按键）开始校时。这一步不能跳过，否则校时会被忽略。"
-        case .syncing:
-            return "正在循环发送校时帧（含当前时分秒），请观察指针。收到手表确认帧后自动停止。"
-        case .synced:
-            return "手表时间已同步，指针已追到当前时间。可以正常使用其它功能。"
+        case .idle: return "连接手表后，请长按手表键开蓝牙完成配对。"
+        case .handshaking: return "已发送连接确认和授权，手表即将震动。"
+        case .waitingButton: return "手表震动后请短按一下侧键，再点下方按钮开始校时。这一步不能跳过，否则校时会被忽略。"
+        case .syncing: return "正在循环发送校时帧（含当前时分秒），请观察指针。收到手表确认帧后自动停止。"
+        case .synced: return "手表时间已同步，指针已追到当前时间。可以正常使用其它功能。"
         }
-    }
-}
-
-// MARK: - 设备详情视图
-
-struct DeviceDetailView: View {
-    @EnvironmentObject var viewModel: DeviceViewModel
-
-    var body: some View {
-        List {
-            // 配对引导卡片（真表必须：长按开蓝牙→震动→按侧键→校时）
-            Section {
-                PairingGuideView()
-            }
-
-            // 设备状态卡片
-            Section {
-                VStack(spacing: 16) {
-                    Image(systemName: "applewatch")
-                        .font(.system(size: 60))
-                        .foregroundColor(.blue)
-
-                    Text(viewModel.bluetoothManager.connectedDevice?.name ?? "智能手表")
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    HStack(spacing: 30) {
-                        VStack {
-                            Text("\(viewModel.bluetoothManager.batteryLevel)%")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(batteryColor)
-                            Text("电量")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-
-                        VStack {
-                            Text(viewModel.bluetoothManager.firmwareVersion)
-                                .font(.title)
-                                .fontWeight(.bold)
-                            Text("固件版本")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            }
-
-            // 快捷操作
-            Section("快捷操作") {
-                Button(action: { viewModel.manualSyncTime() }) {
-                    Label("同步时间", systemImage: "clock.arrow.circlepath")
-                }
-
-                Button(action: { viewModel.findWatch() }) {
-                    Label("查找手表", systemImage: "location.fill.viewfinder")
-                }
-
-                Button(action: { viewModel.bluetoothManager.queryVersionAndPower() }) {
-                    Label("刷新状态", systemImage: "arrow.clockwise")
-                }
-            }
-
-            // 断开连接
-            Section {
-                Button(role: .destructive, action: {
-                    viewModel.bluetoothManager.disconnect()
-                }) {
-                    HStack {
-                        Spacer()
-                        Text("断开连接")
-                            .fontWeight(.semibold)
-                        Spacer()
-                    }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-    }
-
-    private var batteryColor: Color {
-        let level = viewModel.bluetoothManager.batteryLevel
-        if level > 50 { return .green }
-        if level > 20 { return .orange }
-        return .red
     }
 }
 
 #Preview {
-    DeviceView()
+    DayView()
         .environmentObject(DeviceViewModel())
 }

@@ -11,6 +11,13 @@ final class DeviceViewModel: ObservableObject {
     @Published var notificationSettings: NotificationSettings = .init()
     @Published var isCameraMode = false
 
+    // 「我的一天」展示数据（手表历史数据上报协议未接入，保持占位）
+    @Published var todaySteps: Int = 0
+    @Published var todayCalories: Int = 0
+    @Published var todayActiveMinutes: Int = 0
+    @Published var todaySleepMinutes: Int = 0
+    @Published var stepGoal: Int = 10000
+
     private var cancellables = Set<AnyCancellable>()
     private let maxAlarms = 5
 
@@ -163,6 +170,21 @@ final class DeviceViewModel: ObservableObject {
                 self.syncAlarmToWatch(alarm, at: index)
             }
             self.syncSedentaryToWatch()
+        }
+    }
+
+    // MARK: - 清除本机历史数据（安卓「设备设置 → 清除历史数据」）
+
+    func clearLocalHistory() {
+        alarms.removeAll()
+        sedentarySettings = .default
+        notificationSettings = .init()
+        todaySteps = 0
+        todayCalories = 0
+        todayActiveMinutes = 0
+        todaySleepMinutes = 0
+        [alarmsKey, sedentaryKey, notificationKey].forEach {
+            UserDefaults.standard.removeObject(forKey: $0)
         }
     }
 

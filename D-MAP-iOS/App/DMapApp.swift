@@ -8,7 +8,8 @@ struct DMapApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(viewModel)
-                .preferredColorScheme(.dark)
+                // 安卓原版 D-MAP 为亮色蓝系界面，固定亮色以保持一致
+                .preferredColorScheme(.light)
         }
     }
 }
